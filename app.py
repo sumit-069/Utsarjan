@@ -294,6 +294,87 @@ st.markdown(
     }
 
     /* =========================
+       MODEL LOADER & ENGINE BADGES
+    ========================= */
+
+    .model-badge-header {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 14px;
+        background: rgba(99, 102, 241, 0.14);
+        border: 1px solid rgba(99, 102, 241, 0.4);
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #e0e7ff;
+        margin-top: 10px;
+        letter-spacing: 0.2px;
+    }
+
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #22c55e;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 10px #22c55e;
+        animation: pulseDot 1.4s infinite ease-in-out;
+    }
+
+    @keyframes pulseDot {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.35; transform: scale(0.75); }
+    }
+
+    .model-loader-card {
+        padding: 18px 22px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.16), rgba(168, 85, 247, 0.12));
+        border: 1px solid rgba(99, 102, 241, 0.45);
+        margin: 20px 0;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.2);
+        animation: fadeInUp 0.3s ease;
+    }
+
+    .model-loader-spinner {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        border: 3.5px solid rgba(99, 102, 241, 0.25);
+        border-top-color: #818cf8;
+        border-right-color: #c084fc;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .model-loader-content {
+        flex: 1;
+    }
+
+    .model-loader-title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .model-loader-detail {
+        font-size: 13px;
+        color: #c7d2fe;
+        margin-top: 4px;
+    }
+
+    /* =========================
        FOOTER
     ========================= */
 
@@ -376,6 +457,19 @@ with st.sidebar:
         "Autonomous AI Agent Creation & Instant API Engine."
     )
 
+    st.markdown(
+        """
+        <div style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 12px; padding: 12px 14px; margin: 12px 0;">
+            <div style="font-size: 11px; font-weight: 700; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 6px;">
+                <span class="pulse-dot"></span> ACTIVE LLM ENGINE
+            </div>
+            <div style="font-size: 13px; font-weight: 700; color: #f8fafc; margin-top: 4px;">⚡ Groq: openai/gpt-oss-120b</div>
+            <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">Fallback: openai/gpt-oss-20b</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
     st.divider()
 
     st.markdown("### ⚡ Quick Examples")
@@ -429,6 +523,10 @@ st.markdown(
             required tools, designs the architecture, generates
             the code, validates it, and exposes the agent as a
             live authenticated API — all in one click.
+        </div>
+        <div class="model-badge-header">
+            <span class="pulse-dot"></span>
+            LLM Engine: Groq • openai/gpt-oss-120b (Fallback: openai/gpt-oss-20b)
         </div>
     </div>
     """,
@@ -502,41 +600,76 @@ if create_button:
         unsafe_allow_html=True
     )
 
+    # Visible dynamic model loader card
+    model_loader_slot = st.empty()
+
+    def update_model_loader_ui(step_text: str, step_index: int):
+        pipeline_slot.markdown(
+            render_pipeline(active_index=step_index, done_index=step_index - 1),
+            unsafe_allow_html=True
+        )
+        model_loader_slot.markdown(
+            f"""
+            <div class="model-loader-card">
+                <div class="model-loader-spinner"></div>
+                <div class="model-loader-content">
+                    <div class="model-loader-title">
+                        <span>⚡ Groq Engine Active: <code style="color:#a5b4fc; background:rgba(0,0,0,0.25); padding:2px 6px; border-radius:6px;">openai/gpt-oss-120b</code></span>
+                    </div>
+                    <div class="model-loader-detail">{step_text}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
     try:
-        with st.status("Starting build pipeline...", expanded=True) as build_status:
+        with st.status("Running autonomous agent builder...", expanded=True) as build_status:
+            st.write("🚀 Connecting to Groq (`openai/gpt-oss-120b`)...")
+            update_model_loader_ui("Initializing build pipeline with Groq...", 0)
 
-            pipeline_slot.markdown(render_pipeline(active_index=0), unsafe_allow_html=True)
-            st.write("🧠 Analyzing requirements from your prompt...")
-            time.sleep(0.25)
+            def build_progress_callback(msg: str, step_idx: int):
+                st.write(msg)
+                update_model_loader_ui(msg, step_idx)
 
-            pipeline_slot.markdown(render_pipeline(active_index=1, done_index=0), unsafe_allow_html=True)
-            st.write("🔧 Selecting the tools this agent will need...")
-            time.sleep(0.25)
-
-            pipeline_slot.markdown(render_pipeline(active_index=2, done_index=1), unsafe_allow_html=True)
-            st.write("🏗️ Designing the agent architecture...")
-            time.sleep(0.25)
-
-            pipeline_slot.markdown(render_pipeline(active_index=4, done_index=3), unsafe_allow_html=True)
-            st.write("💻 Generating agent code...")
-
-            result = build_agent(user_prompt)
-
-            pipeline_slot.markdown(render_pipeline(active_index=5, done_index=4), unsafe_allow_html=True)
-            st.write("🔍 Validating generated agent...")
-            time.sleep(0.25)
+            result = build_agent(user_prompt, callback=build_progress_callback)
 
             if not result.get("valid", False):
                 build_status.update(label="Validation failed", state="error")
+                model_loader_slot.markdown(
+                    """
+                    <div class="model-loader-card" style="border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.1);">
+                        <div class="model-loader-content">
+                            <div class="model-loader-title" style="color: #f87171;">❌ Agent validation failed</div>
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
                 st.error("❌ Generated agent failed validation.")
                 st.json(result)
                 st.stop()
 
             pipeline_slot.markdown(render_pipeline(active_index=6, done_index=5), unsafe_allow_html=True)
-            build_status.update(label="Agent generation completed!", state="complete")
+            build_status.update(label="Agent generation completed successfully!", state="complete")
+            model_loader_slot.markdown(
+                """
+                <div class="model-loader-card" style="border-color: rgba(34, 197, 94, 0.5); background: rgba(34, 197, 94, 0.1);">
+                    <div style="font-size: 24px;">✅</div>
+                    <div class="model-loader-content">
+                        <div class="model-loader-title" style="color: #4ade80;">Agent Generated & Verified Successfully!</div>
+                        <div class="model-loader-detail" style="color: #86efac;">Powered by Groq • openai/gpt-oss-120b</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
     except Exception as e:
+        model_loader_slot.empty()
         st.error(f"❌ Agent Builder Error: {e}")
+        st.exception(e)
+        st.stop()
         st.exception(e)
         st.stop()
 

@@ -31,7 +31,7 @@ load_dotenv()
 # CONFIGURATION & PORT MANAGEMENT
 # ============================================================
 
-BASE_AGENT_PORT = int(os.getenv("BASE_AGENT_PORT", os.getenv("AGENT_PORT_START", "8000")))
+BASE_AGENT_PORT = int(os.getenv("BASE_AGENT_PORT", os.getenv("AGENT_PORT_START", "9000")))
 AGENT_REGISTRY: Dict[str, Dict[str, Any]] = {}
 
 print("Imports loaded successfully.")
@@ -421,49 +421,36 @@ def _call_groq(prompt: str, api_key: str, model_name: str) -> str:
 
 def get_configured_providers(is_strong: bool = False) -> List[Tuple[str, Any, str, str]]:
     """
-    Return list of available provider configurations in preferred fallback order.
-    Includes backup Groq models (gpt-oss-120b, llama-3.3-70b-versatile) if fast model hits limits.
+    Return list of Groq model configurations with fallback order.
+    Uses openai/gpt-oss-120b as primary and openai/gpt-oss-20b as fallback.
     """
     providers = []
-
-    # 1. Gemini
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if gemini_key:
-        gemini_model = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        providers.append(("Gemini", _call_gemini, gemini_key, gemini_model))
-
-    # 2. OpenRouter
-    openrouter_key = os.getenv("OPENROUTER_API_KEY")
-    if openrouter_key:
-        openrouter_model = os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini")
-        providers.append(("OpenRouter", _call_openrouter, openrouter_key, openrouter_model))
-
-    # 3. Groq (Primary & Alternate models to gracefully survive rate limits)
     groq_key = os.getenv("GROQ_API_KEY")
     if groq_key:
-        if is_strong:
-            models = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"]
-        else:
-            models = ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"]
+        primary_model = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+        models = [primary_model, "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+        seen = set()
         for m in models:
-            providers.append(("Groq", _call_groq, groq_key, m))
+            if m and m not in seen:
+                seen.add(m)
+                providers.append(("Groq", _call_groq, groq_key, m))
 
     return providers
 
 
 def invoke_llm(prompt: str, is_strong: bool = False) -> str:
     """
-    Invoke LLM with automatic fallback across configured providers and models
-    (Gemini -> OpenRouter -> Groq alternate models) upon encountering rate limits (429),
-    timeouts, auth failures, or empty responses.
+    Invoke LLM exclusively via Groq using openai/gpt-oss-120b and openai/gpt-oss-20b
+    with automatic fallback upon encountering rate limits (429), timeouts, or empty responses.
     """
     providers = get_configured_providers(is_strong=is_strong)
 
     if not providers:
         groq_key = os.getenv("GROQ_API_KEY", "")
+        if not groq_key:
+            raise RuntimeError("GROQ_API_KEY is not set in your environment or .env file.")
         providers = [
             ("Groq", _call_groq, groq_key, "openai/gpt-oss-120b"),
-            ("Groq", _call_groq, groq_key, "llama-3.3-70b-versatile"),
             ("Groq", _call_groq, groq_key, "openai/gpt-oss-20b")
         ]
 
@@ -480,7 +467,7 @@ def invoke_llm(prompt: str, is_strong: bool = False) -> str:
             time.sleep(0.3)
 
     raise RuntimeError(
-        "All configured LLM providers failed.\nErrors:\n" + "\n".join(f"- {err}" for err in errors)
+        "Groq LLM invocation failed.\nErrors:\n" + "\n".join(f"- {err}" for err in errors)
     )
 
 
@@ -1013,13 +1000,11 @@ Fix ALL listed validation errors and return the COMPLETE, corrected Python code.
     return _clean_code_response(response)
 
 
-# ============================================================
-# MAIN BUILD AGENT PIPELINE
-# ============================================================
 
-def build_agent(user_prompt: str) -> Dict[str, Any]:
+
+def build_agent(user_prompt: str, callback: Optional[Any] = None) -> Dict[str, Any]:
     """
-    End-to-end agent builder pipeline:
+    End-to-end agent builder pipeline with live model status reporting:
     Requirements -> Tools -> Architecture -> Spec -> Code -> Validate & Repair Loop
     """
     print("\n" + "=" * 70)
@@ -1028,6 +1013,8 @@ def build_agent(user_prompt: str) -> Dict[str, Any]:
     print(user_prompt)
 
     # 1. Requirement Analysis
+    if callback:
+        callback("🧠 [Groq • openai/gpt-oss-120b] Analyzing requirements...", 0)
     requirements = analyze_requirements(user_prompt)
     print("\nRequirement Analysis       ✅")
 
@@ -1037,14 +1024,20 @@ def build_agent(user_prompt: str) -> Dict[str, Any]:
     print(f"Agent Type                 → {agent_type}")
 
     # 2. Tool Selection
+    if callback:
+        callback("🔧 [Groq • openai/gpt-oss-120b] Selecting required tools...", 1)
     tools = select_tools(requirements)
     print(f"Selected Tools             → {tools}")
 
     # 3. Architecture Generation
+    if callback:
+        callback("🏗️ [Groq • openai/gpt-oss-120b] Generating architecture...", 2)
     architecture = generate_architecture(requirements, tools)
     print("Architecture               ✅")
 
     # 4. Agent Specification
+    if callback:
+        callback("📋 [Groq • openai/gpt-oss-120b] Assembling agent specification...", 3)
     agent_spec = create_agent_spec(
         user_prompt=user_prompt,
         requirements=requirements,
@@ -1056,16 +1049,22 @@ def build_agent(user_prompt: str) -> Dict[str, Any]:
     print("Agent Specification        ✅")
 
     # 5. Code Generation
+    if callback:
+        callback("💻 [Groq • openai/gpt-oss-120b] Synthesizing agent code...", 4)
     code = generate_code(agent_spec)
     print("Code Generation            ✅")
 
     # 6. Validation & Repair Loop
+    if callback:
+        callback("🔍 Validating generated agent code...", 5)
     for attempt in range(3):
         print(f"\nValidation Attempt {attempt + 1}/3")
         is_valid, validation_errors = validate_code(code, agent_spec)
 
         if is_valid:
             print("🎉 AGENT GENERATED SUCCESSFULLY")
+            if callback:
+                callback("✅ Agent validation passed successfully!", 6)
             return {
                 "agent_spec": agent_spec,
                 "agent_type": agent_type,
@@ -1081,6 +1080,8 @@ def build_agent(user_prompt: str) -> Dict[str, Any]:
 
         if attempt < 2:
             print("🔧 Repairing generated code...")
+            if callback:
+                callback(f"🔧 [Groq • openai/gpt-oss-120b] Repairing code (Attempt {attempt + 1}/3)...", 5)
             code = repair_code(code, validation_errors, agent_spec)
 
     return {
@@ -1240,9 +1241,14 @@ def start_agent_server(agent_id: str, port: int = None) -> int:
     if sys.platform.startswith("win"):
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONPATH"] = str(api_file.parent)
+
     process = subprocess.Popen(
         [
             sys.executable,
+            "-u",
             "-m",
             "uvicorn",
             f"{api_file.stem}:app",
@@ -1254,6 +1260,7 @@ def start_agent_server(agent_id: str, port: int = None) -> int:
         cwd=str(api_file.parent),
         stdout=log_file,
         stderr=subprocess.STDOUT,
+        env=env,
         creationflags=creationflags
     )
 
@@ -1261,8 +1268,8 @@ def start_agent_server(agent_id: str, port: int = None) -> int:
     info["port"] = port
     info["log_file"] = str(log_file_path)
 
-    for _ in range(30):
-        time.sleep(0.3)
+    for _ in range(60):
+        time.sleep(0.5)
         if is_server_running(port):
             info["server_running"] = True
             log_file.close()
