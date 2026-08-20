@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Generated Agent Files & Logs
+*.log
+*_server.log
+*_api.py
+*_credentials.txt
+generated_agent.py
+simple_*.py
+pdf_*.py
+coding_*.py
+research_*.py
+.env
